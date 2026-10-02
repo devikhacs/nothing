@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NOTHING // TELEMETRY — CS304 Lecture 14</title>
+    <meta name="description" content="Faculty live attendance monitoring system for CS 304: Distributed Systems">
+    <link rel="stylesheet" href="style.css">
+    <script src="./qrious.min.js"></script>
+</head>
+
+<body>
+    <div id="app">
+
+        <!-- ── HEADER ─────────────────────────────────────────────────────────── -->
+        <header class="header lock-safe">
+            <div class="header-brand">
+                <span class="brand-name">NOTHING</span>
+                <span class="brand-sep">//</span>
+                <span class="brand-sub">TELEMETRY</span>
+            </div>
+            <div class="live-badge" id="session-badge">
+                <div class="live-dot"></div>LIVE 00:00:00
+            </div>
+            <div class="header-info">
+                <div class="header-course">CS 304: Distributed Systems — Lecture 14</div>
+                <div class="header-sub">Auditorium 2B · Faculty Console</div>
+            </div>
+            <div class="header-controls lock-safe">
+                <button class="hdr-btn" id="sensors-btn" onclick="UI.toggleSensors()" aria-label="Sensors panel">
+                    <span class="hdr-icon">◈</span><span>SENSORS</span>
+                </button>
+                <button class="hdr-btn" id="lock-btn" onclick="UI.toggleLock()" aria-label="Lock view">
+                    <span class="hdr-icon">⊠</span><span>LOCK VIEW</span>
+                </button>
+                <button class="hdr-btn" id="settings-btn" onclick="UI.toggleSettings()"
+                    aria-label="Tune telemetry settings">
+                    <span class="hdr-icon">⊞</span><span>TUNE TELEMETRY</span>
+                </button>
+            </div>
+        </header>
+
+        <!-- ── NAVIGATION ─────────────────────────────────────────────────────── -->
+        <nav role="navigation" aria-label="Dashboard sections">
+            <button class="nav-item active lock-safe" data-view="console" onclick="UI.showView('console')"
+                aria-label="Console view">CONSOLE</button>
+            <button class="nav-item lock-safe" data-view="roster" onclick="UI.showView('roster')"
+                aria-label="Roster view">ROSTER</button>
+            <button class="nav-item lock-safe" data-view="telemetry" onclick="UI.showView('telemetry')"
+                aria-label="Telemetry view">TELEMETRY</button>
+            <button class="nav-item lock-safe" data-view="logs" onclick="UI.showView('logs')"
+                aria-label="Logs view">LOGS</button>
+            <div class="nav-right">
+                <button class="export-btn lock-safe" onclick="ExportService.toCSV()"
+                    aria-label="Export attendance CSV">⤓ EXPORT .CSV</button>
+            </div>
+        </nav>
+
+        <!-- ── MAIN CONTENT ───────────────────────────────────────────────────── -->
+        <div class="main-content">
+
+            <!-- ════ CONSOLE VIEW ════════════════════════════════════════════════ -->
+            <div class="view active" id="view-console" role="main">
+                <div class="console-body">
+
+                    <!-- LEFT: QR Panel -->
+                    <div class="console-left">
+                        <div class="section-header">
+                            <span class="section-title">QR ATTENDANCE BROADCAST</span>
+                            <span class="section-badge" id="qr-rotation-label">Rotating QR (8s)</span>
+                        </div>
+                        <div class="qr-panel">
+                            <div class="qr-stage">
+                                <div class="qr-wrapper" role="img" aria-label="Attendance QR code">
+                                    <canvas id="qr-canvas" width="180" height="180"></canvas>
+                                    <div class="qr-scanner-line" aria-hidden="true"></div>
+                                    <div class="qr-paused-overlay" id="qr-paused-overlay" style="display:none"
+                                        aria-live="polite">
+                                        <div class="p-label">QR BROADCAST PAUSED</div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="qr-info">
+                                <div class="qr-meta-row">
+                                    <span class="qr-meta-label">CYCLE</span>
+                                    <span class="qr-meta-value" id="qr-cycle">#1</span>
+                                </div>
+                                <div class="qr-meta-row">
+                                    <span class="qr-meta-label">HASH</span>
+                                    <span class="qr-meta-value" id="qr-hash"
+                                        style="font-size:9px;letter-spacing:1px">—</span>
+                                </div>
+                                <div class="qr-meta-row">
+                                    <span class="qr-meta-label">TOKEN</span>
+                                    <span class="qr-meta-value" id="qr-token-preview"
+                                        style="font-size:8px;color:var(--text-muted)">—</span>
+                                </div>
+                                <div class="qr-meta-row">
+                                    <span class="qr-meta-label">EXPIRES IN</span>
+                                    <span class="qr-meta-value" id="countdown-num">8s</span>
+                                </div>
+                                <div class="countdown-bar" role="progressbar" aria-label="QR countdown"
+                                    aria-valuemin="0" aria-valuemax="8">
+                                    <div class="countdown-fill" id="countdown-fill" style="width:100%"></div>
+                                </div>
+                                <div class="qr-security-note">TOKEN VALID FOR THIS CYCLE ONLY · DO NOT SHARE · FACULTY
+                                    USE</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- RIGHT: Attendance + Checkins + Incidents -->
+                    <div class="console-right">
+                        <!-- Summary -->
+                        <div class="section-header">
+                            <span class="section-title">ATTENDANCE SUMMARY</span>
+                            <span class="section-badge">ENROLLED: 60</span>
+                        </div>
+                        <div class="summary-grid" aria-label="Attendance statistics">
+                            <div class="summary-cell">
+                                <div class="summary-num green" id="sum-present">38</div>
+                                <div class="summary-label">PRESENT</div>
+                                <div class="summary-sub" id="sum-pct">63.3%</div>
+                            </div>
+                            <div class="summary-cell">
+                                <div class="summary-num" style="color:var(--text-muted)">22</div>
+                                <div class="summary-label">ABSENT</div>
+                                <div class="summary-sub" id="sum-absent-pct">36.7%</div>
+                            </div>
+                            <div class="summary-cell">
+                                <div class="summary-num red" id="sum-flagged">3</div>
+                                <div class="summary-label">FLAGGED</div>
+                                <div class="summary-sub">incidents</div>
+                            </div>
+                        </div>
+
+                        <!-- Security Incident -->
+                        <div id="incident-panel"></div>
+
+                        <!-- Flag review button -->
+                        <button class="flag-btn lock-safe" id="flag-count-btn" onclick="UI.openReviewFlags()"
+                            aria-label="Review flagged incidents">
+                            ⚑ REVIEW <span class="flag-count">3</span> FLAGS
+                        </button>
+
+                        <!-- Check-in feed -->
+                        <div class="section-header" style="margin-top:8px">
+                            <span class="section-title">REAL-TIME CHECK-INS</span>
+                            <span class="section-badge" id="checkin-count-badge">LIVE</span>
+                        </div>
+                        <div class="checkins-panel" id="checkin-list" aria-live="polite"
+                            aria-label="Real-time check-in feed">
+                            <!-- populated by JS -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ── BOTTOM BAR ──────────────────────────────────────────────────── -->
+                <div class="bottom-bar" role="toolbar" aria-label="Session controls">
+                    <button class="bottom-btn lock-safe" id="pause-btn" onclick="UI.togglePause()"
+                        aria-label="Pause QR broadcast (Space)">
+                        <div class="bottom-btn-label">PAUSE QR BROADCAST</div>
+                        <div class="kbd">SPACE</div>
+                    </button>
+                    <button class="bottom-btn lock-safe" onclick="UI.forceRekey()"
+                        aria-label="Force QR re-key (Ctrl+R)">
+                        <div class="bottom-btn-label">FORCE RE-KEY NOW</div>
+                        <div class="kbd">⌘R</div>
+                    </button>
+                    <button class="bottom-btn lock-safe" onclick="UI.toggleFullscreen()"
+                        aria-label="Toggle fullscreen auditorium display (F11)">
+                        <div class="bottom-btn-label">AUDITORIUM DISPLAY</div>
+                        <div style="font-family:var(--font-mono);font-size:8px;color:var(--text-muted)">KIOSK FULLSCREEN
+                        </div>
+                        <div class="kbd">F11</div>
+                    </button>
+                </div>
+            </div><!-- /view-console -->
+
+            <!-- ════ ROSTER VIEW ═════════════════════════════════════════════════ -->
+            <div class="view" id="view-roster">
+                <div class="section-header">
+                    <span class="section-title">STUDENT ROSTER</span>
+                    <span class="section-badge">CS304 · LECTURE 14</span>
+                </div>
+                <div class="view-body">
+                    <div class="search-bar">
+                        <input class="search-input" id="roster-search" type="text" placeholder="Search by name or ID..."
+                            aria-label="Search students">
+                        <select class="filter-select" id="roster-filter" aria-label="Filter by status">
+                            <option value="all">ALL</option>
+                            <option value="present">PRESENT</option>
+                            <option value="absent">ABSENT</option>
+                            <option value="flagged">FLAGGED</option>
+                        </select>
+                    </div>
+                    <table class="data-table" aria-label="Student roster">
+                        <thead>
+                            <tr>
+                                <th>NAME</th>
+                                <th>STUDENT ID</th>
+                                <th>STATUS</th>
+                                <th>CHECK-IN TIME</th>
+                                <th>DEVICE</th>
+                                <th>GEO</th>
+                                <th>FLAG</th>
+                            </tr>
+                        </thead>
+                        <tbody id="roster-tbody"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- ════ TELEMETRY VIEW ══════════════════════════════════════════════ -->
+            <div class="view" id="view-telemetry">
+                <div class="section-header">
+                    <span class="section-title">SYSTEM TELEMETRY</span>
+                    <span class="section-badge">LIVE METRICS</span>
+                </div>
+                <div class="view-body" style="overflow-y:auto;padding:0">
+                    <div class="telemetry-grid" id="tele-grid"></div>
+                </div>
+            </div>
+
+            <!-- ════ LOGS VIEW ═══════════════════════════════════════════════════ -->
+            <div class="view" id="view-logs">
+                <div class="section-header">
+                    <span class="section-title">AUDIT LOG</span>
+                    <span class="section-badge">CHRONOLOGICAL</span>
+                </div>
+                <div class="view-body" style="overflow-y:auto;padding:0">
+                    <div class="log-list" id="log-list"></div>
+                </div>
+            </div>
+
+        </div><!-- /main-content -->
+    </div><!-- /app -->
+
+    <!-- ── FULLSCREEN EXIT BUTTON ─────────────────────────────────────────── -->
+    <button class="fullscreen-exit lock-safe" onclick="UI.toggleFullscreen()" aria-label="Exit fullscreen">✕ EXIT
+        FULLSCREEN</button>
+
+    <!-- ── MODAL: REVIEW FLAGS ────────────────────────────────────────────── -->
+    <div class="modal-overlay" id="modal-flags" role="dialog" aria-modal="true" aria-label="Review flagged incidents"
+        onclick="if(event.target===this)UI.closeReviewFlags()">
+        <div class="modal">
+            <div class="modal-header">
+                <span class="modal-title">⚑ FLAGGED INCIDENTS</span>
+                <button class="modal-close" onclick="UI.closeReviewFlags()" aria-label="Close">✕</button>
+            </div>
+            <div class="modal-body" id="flags-modal-body"></div>
+            <div class="modal-footer">
+                <button class="modal-btn" onclick="UI.closeReviewFlags()">CLOSE</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── CONFIRM DIALOG: OVERRIDE ──────────────────────────────────────── -->
+    <div class="confirm-dialog" id="confirm-dialog" role="dialog" aria-modal="true" aria-label="Confirm manual override"
+        onclick="if(event.target===this)UI.closeOverride()">
+        <div class="confirm-box">
+            <div class="confirm-title">⚠ CONFIRM MANUAL OVERRIDE</div>
+            <div class="confirm-detail">
+                Student: <strong id="confirm-student">—</strong><br>
+                Incident: <strong id="confirm-incident">—</strong><br>
+                Reason: <span id="confirm-reason" style="color:var(--text-muted)">—</span>
+            </div>
+            <p style="font-family:var(--font-mono);font-size:9px;color:var(--accent-red);margin-bottom:12px">
+                This action will be permanently recorded in the audit log.
+            </p>
+            <input type="hidden" id="confirm-override-id">
+            <div class="confirm-actions">
+                <button class="modal-btn" onclick="UI.closeOverride()">CANCEL</button>
+                <button class="modal-btn danger" onclick="UI.confirmOverride()">CONFIRM OVERRIDE</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── SIDE PANEL: SENSORS ────────────────────────────────────────────── -->
+    <div class="side-panel" id="panel-sensors" role="complementary" aria-label="Sensor status panel">
+        <div class="side-panel-header">
+            <span class="side-panel-title">◈ SENSOR STATUS</span>
+            <button class="modal-close lock-safe" onclick="UI.closeSensors()"
+                aria-label="Close sensors panel">✕</button>
+        </div>
+        <div class="side-panel-body">
+            <div class="sensor-row"><span class="sensor-name">QR Generator</span><span class="sensor-status">
+                    <div class="sensor-dot ok"></div>ONLINE
+                </span></div>
+            <div class="sensor-row"><span class="sensor-name">Device Verification</span><span class="sensor-status">
+                    <div class="sensor-dot ok"></div>ONLINE
+                </span></div>
+            <div class="sensor-row"><span class="sensor-name">Geofence Service</span><span class="sensor-status">
+                    <div class="sensor-dot ok"></div>ONLINE
+                </span></div>
+            <div class="sensor-row"><span class="sensor-name">Attendance Service</span><span class="sensor-status">
+                    <div class="sensor-dot ok"></div>ONLINE
+                </span></div>
+            <div class="sensor-row"><span class="sensor-name">Security Engine</span><span class="sensor-status">
+                    <div class="sensor-dot ok"></div>ONLINE
+                </span></div>
+            <div class="sensor-row"><span class="sensor-name">Audit Logger</span><span class="sensor-status">
+                    <div class="sensor-dot ok"></div>ONLINE
+                </span></div>
+            <div class="sensor-row"><span class="sensor-name">System Latency</span><span class="sensor-status"
+                    id="sensor-latency">
+                    <div class="sensor-dot ok"></div>&lt;12ms
+                </span></div>
+            <div class="sensor-row"><span class="sensor-name">Storage</span><span class="sensor-status">
+                    <div class="sensor-dot ok"></div>LOCAL
+                </span></div>
+        </div>
+    </div>
+
+    <!-- ── SIDE PANEL: SETTINGS ──────────────────────────────────────────── -->
+    <div class="side-panel" id="panel-settings" role="complementary" aria-label="Telemetry settings panel">
+        <div class="side-panel-header">
+            <span class="side-panel-title">⊞ TUNE TELEMETRY</span>
+            <button class="modal-close lock-safe" onclick="UI.closeSettings()"
+                aria-label="Close settings panel">✕</button>
+        </div>
+        <div class="side-panel-body">
+            <div class="setting-row">
+                <label class="setting-label" for="setting-qr-interval">QR ROTATION INTERVAL (seconds)</label>
+                <input class="setting-input" id="setting-qr-interval" type="number" min="4" max="60" value="8"
+                    aria-label="QR rotation interval in seconds">
+            </div>
+            <div class="setting-row">
+                <label class="setting-label" for="setting-sim-interval">SIM CHECK-IN BASE INTERVAL (seconds)</label>
+                <input class="setting-input" id="setting-sim-interval" type="number" min="3" max="60" value="8"
+                    aria-label="Simulation check-in interval">
+            </div>
+            <div class="toggle-row">
+                <span class="toggle-label">SIMULATION ENABLED</span>
+                <label class="toggle" aria-label="Enable or disable simulation">
+                    <input type="checkbox" id="setting-sim-enabled" checked>
+                    <span class="toggle-slider"></span>
+                </label>
+            </div>
+            <div class="setting-row">
+                <label class="setting-label" for="setting-geo-radius">GEOFENCE RADIUS (meters)</label>
+                <input class="setting-input" id="setting-geo-radius" type="number" min="10" max="500" value="50"
+                    aria-label="Geofence radius in meters">
+            </div>
+            <div class="setting-row">
+                <label class="setting-label" for="setting-security">SECURITY SENSITIVITY</label>
+                <select class="setting-input filter-select" id="setting-security" style="width:100%"
+                    aria-label="Security sensitivity level">
+                    <option value="low">LOW</option>
+                    <option value="medium" selected>MEDIUM</option>
+                    <option value="high">HIGH</option>
+                </select>
+            </div>
+            <button class="modal-btn primary" style="width:100%;margin-top:4px" onclick="UI.saveSettings()">SAVE
+                SETTINGS</button>
+            <button class="panel-btn" onclick="UI.resetDemoData()" style="margin-top:8px">⟳ RESET DEMO DATA</button>
+        </div>
+    </div>
+
+    <!-- ── SCRIPTS ────────────────────────────────────────────────────────── -->
+    <script type="module">
+        import { AppState, StorageService, QRService, LogService, AttendanceService, SecurityService, ExportService, SimulationEngine, initStudents, initIncidents, initLogs, initSettings, initCheckins } from './services.js';
+        import { initUI } from './ui.js';
+
+        // Expose services globally for onclick handlers
+        window.ExportService = ExportService;
+        window.SecurityService = SecurityService;
+
+        // Initialize
+        initSettings();
+        initStudents();
+        initIncidents();
+        initCheckins();
+        initLogs();
+        await initUI();
+    </script>
+</body>
+
+</html>
